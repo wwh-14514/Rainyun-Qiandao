@@ -7,45 +7,45 @@ on:
 
 jobs:
   sign-in:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # 关键修复：ubuntu-latest 已切到 Ubuntu 26.04，无 Python 3.9
     permissions:
       actions: write  # 允许删除缓存
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4   # v3 -> v4
+
       - name: 设置Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5   # v4 -> v5（Python 3.9 在 24.04 上可用）
         with:
           python-version: '3.9'
-      
+
       - name: 缓存Python依赖
-        uses: actions/cache@v3
+        uses: actions/cache@v4   # v3 -> v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-python-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-python-
-      
+
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
+
       # 移除Chrome浏览器缓存，因为缓存系统目录可能导致权限问题
       # 使用webdriver-manager自动管理ChromeDriver，无需缓存
-      
+
       - name: 安装Chrome和ChromeDriver
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable curl unzip jq
-          
+
           CHROME_FULL_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
           CHROME_MILESTONE=$(echo "$CHROME_FULL_VERSION" | cut -d'.' -f1)
           echo "Chrome完整版本: $CHROME_FULL_VERSION"
           echo "Chrome里程碑版本: $CHROME_MILESTONE"
-          
+
           CHROMEDRIVER_VERSION=""
-          
+
           JSON_DATA=$(curl -sS "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json")
           if [ -n "$JSON_DATA" ]; then
             CHROMEDRIVER_VERSION=$(echo "$JSON_DATA" | jq -r --arg ver "$CHROME_FULL_VERSION" '.versions[] | select(.version == $ver) | .downloads.chromedriver[] | select(.platform == "linux64") | .url' | head -1)
@@ -58,7 +58,7 @@ jobs:
               echo "ChromeDriver安装完成: $(chromedriver --version)"
             fi
           fi
-          
+
           if [ -z "$CHROMEDRIVER_VERSION" ]; then
             echo "尝试使用里程碑版本查找..."
             LATEST_VERSION=$(curl -sS "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json" | jq -r ".milestones.\"$CHROME_MILESTONE\".version" 2>/dev/null)
@@ -76,7 +76,7 @@ jobs:
               which chromedriver && chromedriver --version || echo "系统无默认chromedriver"
             fi
           fi
-      
+
       - name: 生成用户名哈希
         id: hash
         run: |
@@ -94,13 +94,13 @@ jobs:
         run: mkdir -p temp/cookies
 
       - name: 恢复Cookie缓存
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4   # v3 -> v4
         with:
           path: temp/cookies
           key: rainyun-cookies-${{ steps.hash.outputs.user_hash }}-${{ github.run_id }}
           restore-keys: |
             rainyun-cookies-${{ steps.hash.outputs.user_hash }}-
-      
+
       - name: 执行签到脚本
        # 开启debug查看完整过程
         run: python rainyun.py
@@ -135,7 +135,7 @@ jobs:
 
           # 7. Server 酱推送 - 可选配置
           PUSH_KEY: ${{ secrets.PUSH_KEY }}  # Server 酱密钥（兼容旧版/Turbo版）
-          
+
           # 设置无头模式环境变量
           HEADLESS: "true"
           # 启用调试日志
@@ -146,14 +146,14 @@ jobs:
           MAX_WORKERS: "2"
           # 最大重试次数（默认1）
           MAX_RETRIES: "1"
-      
+
       - name: 保存Cookie缓存
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4   # v3 -> v4
         if: always() && hashFiles('temp/cookies/**') != ''
         with:
           path: temp/cookies
           key: rainyun-cookies-${{ steps.hash.outputs.user_hash }}-${{ github.run_id }}
-      
+
       - name: 清理临时文件
         run: rm -rf temp
         if: always()  # 即使前面步骤失败也执行清理
@@ -162,7 +162,7 @@ jobs:
     name: Keepalive Workflow
     if: ${{ always() }}
     needs: sign-in
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # 同样锁 24.04
     permissions:
       actions: write
     steps:
